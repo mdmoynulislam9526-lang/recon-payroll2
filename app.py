@@ -1,5 +1,5 @@
 import streamlit as st
-import sqlite3
+from supabase import create_client
 from datetime import datetime
 import calendar
 from io import BytesIO
@@ -9,32 +9,13 @@ import os
 import base64
 from calculations import calculate_salary_breakdown, generate_pdf_bytes
 
+# --- SUPABASE CONFIGURATION ---
+SUPABASE_URL = "https://qoelqzaodnxjfsmsyvhc.supabase.co"
+SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY" # Ekhane apnar anon/public key-ti bosan
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
 st.set_page_config(page_title="RECON Payroll System", layout="wide", page_icon="💼")
-
-# --- DATABASE INITIALIZATION ---
-def init_db():
-    conn = sqlite3.connect("payroll_v5.db", check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS employees_final_version (
-            emp_id TEXT PRIMARY KEY, name TEXT NOT NULL, designation TEXT NOT NULL,
-            category TEXT NOT NULL, department TEXT NOT NULL, salary REAL NOT NULL
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS monthly_attendance_records (
-            month_year TEXT, emp_id TEXT, present_days INTEGER, absent_days INTEGER, 
-            fine_amount REAL, overtime_hours REAL, overtime_rate REAL, bonus_amount REAL, advance_cut REAL,
-            PRIMARY KEY (month_year, emp_id)
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-init_db()
-
-def get_db_connection():
-    return sqlite3.connect("payroll_v5.db", check_same_thread=False)
 
 # --- LOGO & IMAGES ---
 logo_base64_str = ""
