@@ -66,3 +66,38 @@ with col1:
                 except Exception as e:
                     st.error(f"⚠️ Error: {e}")
                   
+def render_inline_management(r, prefix=""):
+    # r একটি ডিকশনারি, তাই কী (key) ব্যবহার করছি
+    eid, ename, edesg, ecat, edept, esalary = r['emp_id'], r['name'], r['designation'], r['category'], r['department'], r['salary']
+
+    with st.container():
+        col_info, col_act1, col_act2 = st.columns([3, 0.6, 0.6])
+        with col_info:
+            st.markdown(f"**[{eid}] {ename}** — {edesg} ({edept}) | Tk {esalary:,.2f}")
+        
+        with col_act1:
+            if st.button("Edit 📝", key=f"{prefix}_edit_{eid}"):
+                st.session_state[f"emode_{prefix}_{eid}"] = True
+        
+        with col_act2:
+            if st.button("Delete ❌", key=f"{prefix}_del_{eid}", type="secondary"):
+                # Supabase Delete অপারেশন
+                supabase.table("employees_final_version").delete().eq("emp_id", eid).execute()
+                supabase.table("monthly_attendance_records").delete().eq("emp_id", eid).execute()
+                st.rerun()
+
+        if st.session_state.get(f"emode_{prefix}_{eid}", False):
+            with st.form(key=f"form_{prefix}_{eid}"):
+                ch_name = st.text_input("Name", value=ename)
+                ch_salary = st.text_input("Salary", value=str(esalary))
+                
+                if st.form_submit_button("Save"):
+                    # Supabase Update অপারেশন
+                    supabase.table("employees_final_version").update({
+                        "name": ch_name, 
+                        "salary": float(ch_salary)
+                    }).eq("emp_id", eid).execute()
+                    
+                    st.session_state[f"emode_{prefix}_{eid}"] = False
+                    st.rerun()
+                    
