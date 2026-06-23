@@ -101,3 +101,64 @@ def render_inline_management(r, prefix=""):
                     st.session_state[f"emode_{prefix}_{eid}"] = False
                     st.rerun()
                     
+with col2:
+    # Supabase থেকে ডাটা ফেচ করা
+    response = supabase.table("employees_final_version").select("*").execute()
+    rows = response.data 
+
+    if rows:
+        # --- FIXED MONTH SELECTION ---
+        months_list = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+        if 'selected_month' not in st.session_state:
+            st.session_state.selected_month = datetime.now().strftime("%B")
+            
+        c_col1, c_col2 = st.columns(2)
+        with c_col1:
+            select_m = st.selectbox("Select Month", months_list, index=months_list.index(st.session_state.selected_month))
+            st.session_state.selected_month = select_m
+        
+        current_year = datetime.now().year
+        available_years = [str(y) for y in range(2023, current_year + 5)]
+        with c_col2:
+            select_y = st.selectbox("Select Year", available_years, index=available_years.index(str(current_year)))
+        
+        full_month = f"{select_m}, {select_y}"
+        month_num = months_list.index(select_m) + 1
+        days_in_month = calendar.monthrange(int(select_y), month_num)[1]
+        
+        # Supabase থেকে অ্যাটেনডেন্স রেকর্ড ফেচ করা
+        att_response = supabase.table("monthly_attendance_records").select("*").eq("month_year", full_month).execute()
+        db_records = att_response.data
+        
+        # ডিকশনারি কম্প্রিহেনশন (Supabase রেসপন্স অনুযায়ী কীগুলো ব্যবহার করা হয়েছে)
+        saved_db_tracker = {str(r['emp_id']): {
+            "present": r['present'], "absent": r['absent'], "fine": r['fine'], 
+            "ot_hrs": r['ot_hrs'], "ot_rate": r['ot_rate'], "bonus": r['bonus'], "advance": r['advance']
+        } for r in db_records}
+
+        total_payout = 0.0
+        total_bonus = 0.0
+        total_ot = 0.0
+        total_deductions = 0.0
+        total_advance = 0.0
+
+        for r in rows:
+            # ডিকশনারি কী ব্যবহার করা হয়েছে
+            base_sal = r['salary']
+            cat = r['category']
+            eid = r['emp_id']
+            
+            rec = saved_db_tracker.get(str(eid), {"present": days_in_month if cat == 'Worker (Daily Basis)' else 26, "absent": 0, "fine": 0.0, "ot_hrs": 0.0, "ot_rate": 0.0, "bonus": 0.0, "advance": 0.0})
+            
+            _, _, _, _, absent_cut, net_p, adv_paid = calculate_salary_breakdown(
+                base_sal, rec['absent'], rec['fine'], cat, rec['present'], rec['advance']
+            )
+            ot_earned = rec['ot_hrs'] * rec['ot_rate']
+            final_payable = net_p + ot_earned + rec['bonus']
+            
+            total_payout += final_payable
+            total_bonus += rec['bonus']
+            total_ot += ot_earned
+            total_deductions += (absent_cut + rec['fine'])
+            total_advance += adv_paid
+            
