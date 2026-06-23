@@ -161,4 +161,36 @@ with col2:
             total_ot += ot_earned
             total_deductions += (absent_cut + rec['fine'])
             total_advance += adv_paid
-            
+st.markdown("### 📊 Financial Dashboard Summary")
+        m_col1, m_col2, m_col3, m_col4, m_col5, m_col6 = st.columns(6)
+        m_col1.metric("Total Employees", len(rows))
+        m_col2.metric("Total Bonus (Tk)", f"{total_bonus:,.2f}")
+        m_col3.metric("Total Overtime (Tk)", f"{total_ot:,.2f}")
+        m_col4.metric("Total Fine & Abs Cut (Tk)", f"{total_deductions:,.2f}")
+        m_col5.metric("Total Advance Cut (Tk)", f"{total_advance:,.2f}")
+        m_col6.metric("Total Payout (Tk)", f"{total_payout:,.2f}")
+        st.markdown("---")
+
+        # আপনার আগের ডিফাইন করা ট্যাবগুলো এখানে ব্যবহার করছি
+        tab_emp, tab0, tab1, tab2 = st.tabs(["👥 All Employees", "🔍 Search Employee", "📄 Individual Pay Slip", "📊 Attendance & Payroll Processor"])
+        
+        with tab_emp:
+            categories_map = {"💼 Managers": "Manager", "👔 Officers": "Officer", "🛠️ Workers (Permanent)": "Worker (Permanent)", "📆 Workers (Daily Basis)": "Worker (Daily Basis)"}
+            for title, cat_value in categories_map.items():
+                # ইনডেক্স এর পরিবর্তে কী (key) ব্যবহার করা হয়েছে
+                cat_members = [r for r in rows if r['category'] == cat_value]
+                with st.expander(f"{title} ({len(cat_members)})", expanded=False):
+                    if not cat_members: 
+                        st.info("No records.")
+                    else:
+                        for r in cat_members: 
+                            render_inline_management(r, prefix="all_tab")
+
+        with tab0:
+            search_query = st.text_input("Enter Employee ID or Name to search", placeholder="Type here...", key="search_tab_input")
+            if search_query:
+                # emp_id এবং name ফিল্ড অনুযায়ী সার্চ
+                search_results = [r for r in rows if search_query.lower() in str(r['emp_id']).lower() or search_query.lower() in r['name'].lower()]
+                for emp in search_results: 
+                    render_inline_management(emp, prefix="search_tab")
+                    
