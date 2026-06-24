@@ -300,4 +300,70 @@ st.markdown("### 📊 Financial Dashboard Summary")
                     pdf_buf = BytesIO()
                     generate_pdf_bytes(pdf_emp_data, full_month, rec['absent'], rec['fine'], rec['present'], pdf_buf)
                     st.download_button("📥 Download Pay Slip (PDF)", data=pdf_buf.getvalue(), file_name=f"PaySlip_{selected_emp['emp_id']}_{select_m}.pdf", mime="application/pdf", use_container_width=True)
+     # --- TAB 2: ATTENDANCE & PROCESSOR ---
+        with tab2:
+            view_cat = st.selectbox("Select Category to Process", ["Manager", "Officer", "Worker (Permanent)", "Worker (Daily Basis)"], key="att_sheet_cat")
+
+            # Supabase ডাটা যেহেতু ডিকশনারি, তাই কলাম নাম দিয়ে ফিল্টার করা হয়েছে
+            filtered_rows = [r for r in rows if r['category'] == view_cat]
+            
+            sheet_data = []
+            if filtered_rows:
+                with st.form("bulk_sheet_form_v5"):
+                    for r in filtered_rows:
+                        st.markdown(f"**🔹 {r['emp_id']} - {r['name']}** ({r['designation']})")
+                        
+                        # ডাটা ট্র্যাকারে ডিকশনারি কী ব্যবহার করা হয়েছে
+                        rec = saved_db_tracker.get(str(r['emp_id']), {
+                            "present": days_in_month if r['category'] == 'Worker (Daily Basis)' else 26, 
+                            "absent": 0, "fine": 0.0, "ot_hrs": 0.0, "ot_rate": 0.0, "bonus": 0.0, "advance": 0.0
+                        })
+                        
+                        col_in1, col_in2, col_in3 = st.columns(3)
+                        with col_in1:
+                            # ডিফল্ট ভ্যালু নির্ধারণ
+                            default_target = int(rec['present'] + rec['absent']) if rec['absent'] > 0 else (days_in_month if r['category'] == 'Worker (Daily Basis)' else max(26, int(rec['present'])))
+                            
+                            total_target_days = st.number_input("Total Target Days", 1, 100, default_target, key=f"target_{r['emp_id']}")
+                            a_d = st.number_input("Absent Days", 0, total_target_days, int(rec['absent']), key=f"a_{r['emp_id']}")
+                            p_d = total_target_days - a_d
+                            f_d = st.number_input("Penalty/Fine (Tk)", 0.0, value=float(rec['fine']), key=f"f_{r['emp_id']}")
+                        
+                        with col_in2:
+                            ot_h = st.number_input("Overtime Hours", 0.0, 200.0, value=float(rec['ot_hrs']), key=f"oth_{r['emp_id']}")
+                            ot_r = st.number_input("OT Rate per Hour (Tk)", 0.0, 1000.0, value=float(rec['ot_rate']), key=f"otr_{r['emp_id']}")
+                        
+                        with col_in3:
+                            bonus_amt = st.number_input("Bonus Amount (Tk)", 0.0, 200000.0, value=float(rec['bonus']), key=f"bn_{r['emp_id']}")
+                            adv_cut = st.number_input("Advanced Salary Cut (Tk)", 0.0, 200000.0, value=float(rec['advance']), key=f"adv_{r['emp_id']}")
+                        
+                        sheet_data.append({'eid': r['emp_id'], 'p': p_d, 'a': a_d, 'f': f_d, 'oth': ot_h, 'otr': ot_r, 'bonus': bonus_amt, 'adv': adv_cut})
+                        st.markdown("<hr style='margin:2px 0; border-color:#eee;'>", unsafe_allow_html=True)
                     
+                    st.markdown("#### 🔒 Data Saving Security Verification")
+                    confirm_save = st.checkbox(f"I intentionally want to save/overwrite data for **{full_month}**.")
+                    
+                    if st.form_submit_button("💾 Save Entry to Database", use_container_width=True, type="primary"):
+                        if not confirm_save:
+                            st.error(f"❌ Action Denied! Please check the permission box above to confirm saving data for **{full_month}**.")
+                        else:
+                            # Supabase ডাটা ইনসার্ট করার লজিক (আপনার ডাটাবেস ফাংশন অনুযায়ী)
+                            # এখানে bulk insert বা লুপ ব্যবহার করতে পারেন
+                            for item in sheet_data:
+                                supabase.table("monthly_attendance_records").upsert({
+                                    "month_year": full_month,
+                                    "emp_id": item['eid'],
+                                    "present": item['p'],
+                                    "absent": item['a'],
+                                    "fine": item['f'],
+                                    "ot_hrs": item['oth'],
+                                    "ot_rate": item['otr'],
+                                    "bonus": item['bonus'],
+                                    "advance": item['adv']
+                                }).execute()
+                            
+                            st.success(f"✅ Successfully saved records for {full_month}!")
+                            st.rerun()
+
+            st.markdown("---")
+            st.markdown("### 🖨️ Print Preview Panel (Live Database Sheet)")               
