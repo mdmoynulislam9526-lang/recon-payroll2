@@ -272,3 +272,29 @@ with tab3:
                                 <td style="border: 1px solid #e9ecef; padding: 8px; text-align: right; color: #1e7e34; font-weight: 500;">{rec['bonus']:,.2f}</td>
                                 <td style="border: 1px solid #e9ecef; padding: 8px; text-align: right; color: #c00; font-weight: 500;">{adv_paid:,.2f}</td>
                                 <td style="border: 1px solid #dee2e6; padding: 8px; text-align: right; font-weight: 700; color: #1F4E78; background-color: #f8f9fa; font-size: 13px;">{final_payable:,.2f}</td>
+                         </tr>
+                         """
+# --- NEW TAB: DASHBOARD SUMMARY ---
+        with tab4:
+            st.subheader("📈 Dashboard Summary")
+            total_employees = len(rows)
+            total_salary_budget = sum([r['salary'] for r in rows])
+            
+            col_stat1, col_stat2 = st.columns(2)
+            col_stat1.metric("Total Employees", total_employees)
+            col_stat2.metric("Total Base Salary Budget", f"Tk {total_salary_budget:,.2f}")
+            
+            df_rows = pd.DataFrame(rows)
+            if not df_rows.empty:
+                cat_summary = df_rows.groupby('category')['salary'].agg(['count', 'sum']).reset_index()
+                cat_summary.columns = ['Category', 'Employee Count', 'Total Salary']
+                st.table(cat_summary)
+                st.bar_chart(cat_summary.set_index('Category')['Total Salary'])
+                print_html += "</tbody></table></div>"
+            print_html += "</div>"
+            if has_any_data:
+                st.components.v1.html(print_html, height=600, scrolling=True)
+                if st.button("🖨️ CLICK HERE TO PRINT THIS FULL SHEET", use_container_width=True, type="primary"):
+                    st.components.v1.html(f"{print_html}<script>window.print();</script>", height=0)
+            else:
+                st.info("No records loaded yet.")
