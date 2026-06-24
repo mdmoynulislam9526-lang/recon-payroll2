@@ -124,4 +124,50 @@ with col2:
             if search_query:
                 search_results = [r for r in rows if search_query.lower() in str(r['emp_id']).lower() or search_query.lower() in r['name'].lower()]
                 for emp in search_results: render_inline_management(emp, prefix="search_tab")
-                  
+with tab1:
+            st.subheader("📄 Employee Pay Slip Preview")
+            # এমপ্লয়ি নির্বাচন
+            selected_emp_id = st.selectbox("Select Employee", [f"{r['emp_id']} - {r['name']}" for r in rows], key="ps_select")
+            selected_id = selected_emp_id.split(" - ")[0]
+            selected_emp = next(r for r in rows if str(r['emp_id']) == selected_id)
+            
+            # ডেটা ফেচিং
+            rec = saved_db_tracker.get(str(selected_id), {"present": 26, "absent": 0, "fine": 0.0, "ot_hrs": 0.0, "ot_rate": 0.0, "bonus": 0.0, "advance": 0.0})
+            gross, house_rent, medical, _, absent_cut, net_p, adv_paid = calculate_salary_breakdown(selected_emp['salary'], rec['absent'], rec['fine'], selected_emp['category'], rec['present'], rec['advance'])
+            total_ot_emp = rec['ot_hrs'] * rec['ot_rate']
+            net_final = net_p + total_ot_emp + rec['bonus']
+
+            # সেই আগের সিগনেচার লজিক
+            sig_html_element = f"<img src='data:image/png;base64,{sig_base64_str}' style='width: 150px;'>" if sig_base64_str else "____________________"
+
+            # Pay Slip HTML Design
+            payslip_preview_html = f"""
+            <div style="font-family: 'Segoe UI', Arial, sans-serif; padding: 35px; background: white; color: black; border: 1px solid #c8d6e5; border-radius: 8px; max-width: 700px; margin: 15px auto; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
+                <div style="text-align: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px solid #1F4E78;">
+                    {"<img src='data:image/png;base64," + logo_base64_str + "' style='max-height: 65px;'>" if logo_base64_str else ""}
+                </div>
+                <div style="text-align: center; font-weight: 700; color: #1F4E78; margin-bottom: 20px;">EMPLOYEE PAY SLIP - {full_month}</div>
+                
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px;">
+                    <tr><td style="padding: 5px; border: 1px solid #ddd;">ID: #{selected_emp['emp_id']}</td><td style="padding: 5px; border: 1px solid #ddd;">Dept: {selected_emp['department']}</td></tr>
+                    <tr><td style="padding: 5px; border: 1px solid #ddd;">Name: {selected_emp['name']}</td><td style="padding: 5px; border: 1px solid #ddd;">Desig: {selected_emp['designation']}</td></tr>
+                </table>
+
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <tr style="background-color: #f8fafc;"><th>Earnings</th><th>Amount</th><th>Deductions</th><th>Amount</th></tr>
+                    <tr><td>Base Pay</td><td>{selected_emp['salary']:,.2f}</td><td>Absent Cut</td><td>{absent_cut:,.2f}</td></tr>
+                    <tr><td>OT Earned</td><td>{total_ot_emp:,.2f}</td><td>Fine</td><td>{rec['fine']:,.2f}</td></tr>
+                    <tr><td>Bonus</td><td>{rec['bonus']:,.2f}</td><td>Advance</td><td>{adv_paid:,.2f}</td></tr>
+                    <tr style="border-top: 2px solid #1F4E78; font-weight: bold;"><td>Net Payable</td><td>Tk {net_final:,.2f}</td><td></td><td></td></tr>
+                </table>
+
+                <div style="margin-top: 40px; text-align: right;">{sig_html_element}<br>Authorized Signature</div>
+            </div>
+            """
+            st.components.v1.html(payslip_preview_html, height=560, scrolling=True)
+
+            # PDF Download
+            pdf_emp_data = (selected_emp['emp_id'], selected_emp['name'], selected_emp['designation'], selected_emp['category'], selected_emp['department'], house_rent, medical, adv_paid, net_final)
+            pdf_buf = BytesIO()
+            generate_pdf_bytes(pdf_emp_data, full_month, rec['absent'], rec['fine'], rec['present'], pdf_buf)
+            st.download_button("📥 Download Pay Slip (PDF)", data=pdf_buf.getvalue(), file_name=f"PaySlip_{selected_id}.pdf", mime="application/pdf", use_container_width=True)                  
